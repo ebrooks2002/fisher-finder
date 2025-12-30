@@ -7,6 +7,7 @@ import retrofit2.http.GET
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 
+
 private const val FEED_ID = "YOUR_SPOT_FEED_ID"
 
 private const val BASE_URL =
