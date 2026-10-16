@@ -2,10 +2,11 @@ package com.github.ebrooks2002.fisherfinder.model
 
 import android.location.Location
 import androidx.compose.ui.text.AnnotatedString
+import com.github.ebrooks2002.fisherfinder.data.MessageItem
 
 data class NavigationState(
-    val allMessages: List<Message>,
-    val messages : List<Message>,
+    val allMessages: List<MessageItem>,
+    val messages : List<MessageItem>,
     val selectedAssetName: String?,
     val displayName: String,
     val position: String,

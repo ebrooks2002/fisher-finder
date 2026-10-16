@@ -1,13 +1,15 @@
 package com.github.ebrooks2002.fisherfinder.data
 
 import android.location.Location
+import android.util.Log
 import com.github.ebrooks2002.fisherfinder.model.Message
 
-fun getCurrentSpeed(latest: Message, previous: Message): Double {
-    val time1 = latest.parseDate()?.time ?: 0L
-    val time2 = previous.parseDate()?.time ?: 0L
-    val timeDiffMs = time1 - time2
-    if (timeDiffMs > 0) {
+fun getCurrentSpeed(latest: MessageItem, previous: MessageItem): Double {
+    val time1 = latest.unixTime
+    val time2 = previous.unixTime
+    val timeDiffSec = time1 - time2
+
+    if (timeDiffSec > 0) {
         val loc1 = Location("PointA").apply {
             latitude = latest.latitude
             longitude = latest.longitude
@@ -18,7 +20,8 @@ fun getCurrentSpeed(latest: Message, previous: Message): Double {
         }
         val distanceMeters = loc1.distanceTo(loc2)
         val distanceKm = distanceMeters / 1000.0
-        val timeHours = timeDiffMs / (1000.0 * 60.0 * 60.0)
+        val timeHours = timeDiffSec / 60 / 60
+        Log.d("hours", timeHours.toString())
         val speedKmh = distanceKm / timeHours
         val speedKnots = speedKmh * 0.539957
         return speedKnots

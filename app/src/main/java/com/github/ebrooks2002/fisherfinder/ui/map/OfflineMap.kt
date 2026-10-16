@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.github.ebrooks2002.fisherfinder.data.MessageItem
 import com.github.ebrooks2002.fisherfinder.model.AssetData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -55,37 +56,38 @@ import org.maplibre.geojson.LineString
 @Composable
 fun OfflineMap(
     modifier: Modifier = Modifier,
-    assetData: AssetData,
+    messages: List<MessageItem>,
     viewmodel: FisherFinderViewModel
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val assetState = viewmodel.processAssetData(assetData)
+    val assetState = viewmodel.processAssetData(messages)
     val selectedName = assetState.displayName
 
     var isLocationEnabled by remember { mutableStateOf(false) }
 
     val (featureCollection, lineFeatureCollection) = remember(assetState.allMessages) {
         val messagesByAsset = assetState.allMessages
-            .filter { it.messengerName != null }
+            .filter { true }
             .groupBy { it.messengerName }
 
         val features = mutableListOf<Feature>()
         val lineFeatures = mutableListOf<Feature>()
 
         messagesByAsset.forEach { (name, messages) ->
-            val sorted = messages.sortedBy { it.parseDate()?.time ?: 0L }
+            val sorted = messages.sortedBy { it.unixTime ?: 0L }
             // Pin (Latest message only)
             sorted.lastOrNull()?.let { message ->
                 val feature = Feature.fromGeometry(Point.fromLngLat(message.longitude, message.latitude))
-                feature.addStringProperty("name", message.messengerName?.substringAfterLast("_") ?: "Unknown")
-                val time = message.parseDate()
-                val diffMinutes = if (time != null) (System.currentTimeMillis() - time.time) / (1000 * 60) else 999L
+                feature.addStringProperty("name", message.messengerName.substringAfterLast("_") ?: "Unknown")
+                val time = message.unixTime
+
+                val diffMinutes = (System.currentTimeMillis() / 1000 - time) / (60)
 
                 feature.addStringProperty("diffMinutes", diffMinutes.toString())
-                feature.addStringProperty("time", message.formattedTime ?: "")
-                feature.addStringProperty("date", message.formattedDate ?: "")
+                feature.addStringProperty("time", message.time ?: "")
+                feature.addStringProperty("date", message.date ?: "")
                 features.add(feature)
             }
             // Line (Full history)

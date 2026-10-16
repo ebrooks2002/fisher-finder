@@ -9,7 +9,6 @@
 package com.github.ebrooks2002.fisherfinder.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -17,9 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.github.ebrooks2002.fisherfinder.model.AssetData
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,7 +41,6 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
 import android.location.Location
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.aspectRatio
@@ -55,7 +51,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults.cardColors
 import androidx.compose.material3.CardDefaults.cardElevation
-import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -63,12 +58,12 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.ebrooks2002.fisherfinder.ui.map.OfflineMap
-import com.github.ebrooks2002.fisherfinder.ui.theme.BuoyFinderTheme
 import com.github.ebrooks2002.fisherfinder.viewModel.FisherFinderUiState
 import com.github.ebrooks2002.fisherfinder.viewModel.FisherFinderViewModel
 import androidx.core.graphics.toColorInt
-import com.github.ebrooks2002.fisherfinder.data.AssetRepository
-import com.github.ebrooks2002.fisherfinder.data.DataPersistenceManager
+import com.github.ebrooks2002.fisherfinder.data.MessageItem
+import com.github.ebrooks2002.fisherfinder.model.NavigationState
+import org.maplibre.android.http.HttpLogger.log
 
 
 /**
@@ -86,7 +81,6 @@ import com.github.ebrooks2002.fisherfinder.data.DataPersistenceManager
  */
 @Composable
 fun HomeScreen(
-    assetRepository: AssetRepository,
     fisherFinderUiState: FisherFinderUiState,
     onGetDataClicked: () -> Unit,
     modifier: Modifier = Modifier, userLocation: Location?,
@@ -94,12 +88,11 @@ fun HomeScreen(
     userRotation: Float?,
     userDirection: String?,
     onStartRotationUpdates: () -> Unit,
-    viewModel: FisherFinderViewModel = viewModel(),
+    viewModel: FisherFinderViewModel = viewModel(factory = FisherFinderViewModel.Factory),
 ) {
-    val context = LocalContext.current
+
     LaunchedEffect(Unit) {
-        viewModel.loadCachedData(context)
-        viewModel.getAssetData(assetRepository = assetRepository, context=context)
+        viewModel.getAssetData()
     }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -122,43 +115,45 @@ fun HomeScreen(
         )
     }
 
-    var currentAssetData by remember { mutableStateOf<AssetData?>(null) }
+    var currentAssetData by remember { mutableStateOf<List<MessageItem>>(emptyList()) }
 
     if (fisherFinderUiState is FisherFinderUiState.Success) {
-        currentAssetData = fisherFinderUiState.assetData
+        currentAssetData = fisherFinderUiState.messageList
     }
 
     if (fisherFinderUiState is FisherFinderUiState.Error ) {
-        currentAssetData = fisherFinderUiState.assetData
+        currentAssetData = fisherFinderUiState.messageList
+    }
+
+    when (fisherFinderUiState) {
+        is FisherFinderUiState.Loading -> ErrorLoadingMessage(message = "Loading")
+        is FisherFinderUiState.Error -> ErrorLoadingMessage(message = "Error Fetching Data")
+        else -> {}
     }
 
     if (currentAssetData != null) {
         ResultScreen(
-            assetData = currentAssetData!!,
+            navState = viewModel.processAssetData(currentAssetData),
+            messages = currentAssetData,
             viewModel = viewModel, // Pass the viewModel here
             onGetDataClicked = onGetDataClicked,
             loading = fisherFinderUiState is FisherFinderUiState.Loading,
             error = fisherFinderUiState is FisherFinderUiState.Error
         )
-    } else {
-        when (fisherFinderUiState) {
-            is FisherFinderUiState.Loading -> ErrorLoadingMessage(message = "Loading")
-            is FisherFinderUiState.Error -> ErrorLoadingMessage(message = "Error Fetching Data")
-            else -> {}
-        }
     }
+
 }
 
 @Composable
 fun ResultScreen(
-    assetData: AssetData,
+    navState: NavigationState,
+    messages: List<MessageItem>,
     viewModel: FisherFinderViewModel, // Pass the ViewModel in
     onGetDataClicked: () -> Unit,
     loading: Boolean,
     error: Boolean
 ) {
     // Everything is processed here in one line
-    val navState = viewModel.processAssetData(assetData) // bad
 
     Column(modifier = Modifier
         .fillMaxSize()
@@ -222,7 +217,7 @@ fun ResultScreen(
             OfflineMap(
                 modifier = Modifier
                     .height(400.dp),
-                assetData = assetData,
+                messages = messages,
                 viewmodel = viewModel
             )
         }
@@ -264,7 +259,7 @@ fun DisplayData(
             .fillMaxWidth(),
         elevation = cardElevation(defaultElevation = 0.dp),
         shape = RectangleShape,
-        colors = cardColors(containerColor = Color(android.graphics.Color.parseColor("#EFEDE8")))
+        colors = cardColors(containerColor = Color("#EFEDE8".toColorInt()))
     ) {
         Column(
             modifier = Modifier
@@ -541,34 +536,32 @@ fun ErrorLoadingMessage(message: String) {
     }
 }
 
-@Preview(
-    showBackground = true,
-    showSystemUi = true,
-    device = "id:pixel_5"
-)
-@Composable
-fun HomeScreenPreview() {
-    BuoyFinderTheme {
-        Surface(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val viewModel: FisherFinderViewModel = viewModel()
-            val context = LocalContext.current
-            HomeScreen(
-                assetRepository = AssetRepository(DataPersistenceManager()),
-                fisherFinderUiState = FisherFinderUiState.Success(AssetData()),
-                onGetDataClicked = { viewModel.getAssetData(assetRepository = AssetRepository(DataPersistenceManager()
-                ),context) },
-                userLocation = viewModel.userLocation,
-                onStartLocationUpdates = {
-                    viewModel.startLocationTracking(context)
-                },
-                userRotation = viewModel.userRotation,
-                userDirection = viewModel.headingDirection,
-                onStartRotationUpdates = {
-                    viewModel.startRotationTracking(context)
-                }
-            )
-        }
-    }
-}
+//
+//@Preview(
+//    showBackground = true,
+//    showSystemUi = true,
+//    device = "id:pixel_5"
+//)
+//@Composable
+//fun HomeScreenPreview() {
+//    BuoyFinderTheme {
+//        Surface(
+//            modifier = Modifier.fillMaxSize()
+//        ) {
+//            val viewModel: FisherFinderViewModel = viewModel(factory = FisherFinderViewModel.Factory)
+//            HomeScreen(
+//                fisherFinderUiState = FisherFinderUiState.Success(AssetData()),
+//                onGetDataClicked = { viewModel.getAssetData() },
+//                userLocation = viewModel.userLocation,
+//                onStartLocationUpdates = {
+//                    viewModel.startLocationTracking()
+//                },
+//                userRotation = viewModel.userRotation,
+//                userDirection = viewModel.headingDirection,
+//                onStartRotationUpdates = {
+//                    viewModel.startRotationTracking()
+//                }
+//            )
+//        }
+//    }
+//}

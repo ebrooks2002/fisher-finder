@@ -13,60 +13,30 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import com.github.ebrooks2002.fisherfinder.viewModel.FisherFinderViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.ebrooks2002.fisherfinder.data.AssetRepository
-import com.github.ebrooks2002.fisherfinder.data.DataPersistenceManager
-import com.github.ebrooks2002.fisherfinder.model.AssetData
+
+
+
 import com.github.ebrooks2002.fisherfinder.ui.HomeScreen
-import com.github.ebrooks2002.fisherfinder.ui.theme.BuoyFinderTheme
-import com.github.ebrooks2002.fisherfinder.viewModel.FisherFinderUiState
+import androidx.core.graphics.toColorInt
 
 @Composable
 fun BuoyFinderApp() {
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(android.graphics.Color.parseColor("#EFEDE8"))
+        color = Color("#EFEDE8".toColorInt())
     ) {
         val fisherFinderViewModel: FisherFinderViewModel = viewModel(factory = FisherFinderViewModel.Factory)
-        val context = LocalContext.current
-        val dataPersistenceManager = DataPersistenceManager()
-        val assetRepository = AssetRepository(dataPersistenceManager)
-
         HomeScreen(
-            assetRepository =  assetRepository ,
             fisherFinderUiState = fisherFinderViewModel.fisherFinderUiState,
-            onGetDataClicked = { fisherFinderViewModel.getAssetData(assetRepository, context) },
+            onGetDataClicked = { fisherFinderViewModel.getAssetData() },
             userLocation = fisherFinderViewModel.userLocation,
-            onStartLocationUpdates = { fisherFinderViewModel.startLocationTracking(context) },
+            onStartLocationUpdates = { fisherFinderViewModel.startLocationTracking() },
             userRotation = fisherFinderViewModel.userRotation,
             userDirection = fisherFinderViewModel.headingDirection,
-            onStartRotationUpdates = { fisherFinderViewModel.startRotationTracking(context) }
+            onStartRotationUpdates = { fisherFinderViewModel.startRotationTracking() }
         )
     }
 }
 
-@Preview(
-    showBackground = true,
-    showSystemUi = true,
-    device = "id:pixel_5"
-)
-@Composable
-fun BuoyFinderAppPreview() {
-    BuoyFinderTheme {
-        HomeScreen(
-            fisherFinderUiState = FisherFinderUiState.Success(
-                AssetData()
-            ),
-            onGetDataClicked = {},
-            userLocation = null,
-            onStartLocationUpdates = {},
-            userRotation = 0f,
-            userDirection = "N",
-            onStartRotationUpdates = {},
-            assetRepository = AssetRepository(DataPersistenceManager())
-        )
-    }
-}
