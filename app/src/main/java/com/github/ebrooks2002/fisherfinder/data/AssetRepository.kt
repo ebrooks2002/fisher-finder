@@ -1,43 +1,50 @@
 package com.github.ebrooks2002.fisherfinder.data
 
-import android.content.Context
 import android.util.Log
-import com.github.ebrooks2002.fisherfinder.model.AssetData
-import com.github.ebrooks2002.fisherfinder.model.Message
 import com.github.ebrooks2002.fisherfinder.network.SPOTApiService
 
 class AssetRepository(
     val retrofitService: SPOTApiService,
-    val dataPersistenceManager: DataPersistenceManager) {
+    val databaseManager : DatabaseManager) {
 
-    /**
-     * Tries to fetch call .getData(), saves result to disk, the loads the data to
-     * the disk for offline use. If the .getData() request fails,
-     * we load data from disk and return cached.
-     */
-    suspend fun fetchData(): AssetData? {
-        var listResult: AssetData? = null
-        val allMessages = mutableListOf<Message>()
-        for (i in 0..2) {
-            val start = i * 50
-            try {
-                Log.d("result1", "sweartogodbruh")
-                val result = retrofitService.getData(start = start)
-                listResult = result
-                Log.d("result", listResult.toString())
-                val messages = result.response.feedMessageResponse.messages?.list ?: emptyList()
-                allMessages.addAll(messages)
-                dataPersistenceManager.saveDataToDisk(data = result)
-                if (messages.size < 50) break
-                return result
-            } catch (e: Exception) {
-                Log.d("error", e.toString())
-                val cached = dataPersistenceManager.loadDataFromDisk()
-                return cached
-            }
+    // try to fetch data from the server and add to our database.
+    // return a list of messages from our database.
+
+    suspend fun fetchServerData() {
+        val assetData = try {
+            retrofitService.getData()
+        } catch (e: Exception) {
+            null
         }
+        Log.d("assetdata", assetData.toString())
+       if (assetData != null) {
 
-        return listResult
+           val messages = assetData.response.feedMessageResponse.messages?.list
+           Log.d("messagesunsorted", messages.toString())
+           messages?.sortedBy {it.unixTime}
+           Log.d("messagessorted", messages.toString())
+           //Log.d("messages",messages.toString())
+           messages?.forEach {
+               val message = MessageItem(
+                   messengerName = it.messengerName,
+                   date = it.formattedDate,
+                   time = it.formattedTime,
+                   unixTime = it.unixTime,
+                   latitude = it.latitude,
+                   longitude = it.longitude
+               )
+               insertItem(message)
+           }
+       }
+    }
+
+    suspend fun insertItem(item: MessageItem) {
+        databaseManager.insertAndTrim(item)
+    }
+
+    suspend fun getAllItems(): List<MessageItem> {
+        Log.d("Items", databaseManager.getAllItems().toString())
+        return databaseManager.getAllItems()
     }
 
 }

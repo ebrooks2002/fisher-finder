@@ -2,7 +2,8 @@ package com.github.ebrooks2002.fisherfinder.di
 
 import android.content.Context
 import com.github.ebrooks2002.fisherfinder.data.AssetRepository
-import com.github.ebrooks2002.fisherfinder.data.DataPersistenceManager
+import com.github.ebrooks2002.fisherfinder.data.DatabaseManager
+import com.github.ebrooks2002.fisherfinder.data.MessageDatabase
 import com.github.ebrooks2002.fisherfinder.location.LocationFinder
 import com.github.ebrooks2002.fisherfinder.location.RotationSensor
 import com.github.ebrooks2002.fisherfinder.network.SPOTApiService
@@ -10,6 +11,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import com.github.ebrooks2002.fisherfinder.BuildConfig
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
@@ -21,7 +23,7 @@ interface AppContainer{
 
 class DefaultAppContainer(val context: Context): AppContainer {
 
-    private  val FEED_ID = "YOUR_SPOT_FEED_ID"
+    private  val FEED_ID = BuildConfig.SPOT_FEED_ID
     private val BASE_URL =
         "https://api.findmespot.com/spot-main-web/consumer/rest-api/2.0/public/feed/$FEED_ID/"
     private val logger = HttpLoggingInterceptor().apply {
@@ -40,13 +42,14 @@ class DefaultAppContainer(val context: Context): AppContainer {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .client(client)
         .build()
-    val dataPersistenceManager = DataPersistenceManager(context)
+
+    val databaseManager = DatabaseManager(MessageDatabase.getDatabase(context).messageDao())
 
     override val locationFinder = LocationFinder(context)
     override val rotationSensor = RotationSensor(context)
 
     override val assetDataRepository: AssetRepository by lazy {
-        AssetRepository(retrofitService = retrofitService, dataPersistenceManager = dataPersistenceManager)
+        AssetRepository(retrofitService = retrofitService, databaseManager = databaseManager)
     }
     val retrofitService: SPOTApiService by lazy {
         retrofit.create(SPOTApiService::class.java)

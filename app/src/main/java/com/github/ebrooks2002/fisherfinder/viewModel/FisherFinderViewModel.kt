@@ -21,15 +21,15 @@ import com.github.ebrooks2002.fisherfinder.FisherFinderApplication
 import com.github.ebrooks2002.fisherfinder.data.AssetRepository
 import com.github.ebrooks2002.fisherfinder.location.LocationFinder
 import com.github.ebrooks2002.fisherfinder.location.RotationSensor
-import com.github.ebrooks2002.fisherfinder.data.DataPersistenceManager
+import com.github.ebrooks2002.fisherfinder.data.MessageItem
 import com.github.ebrooks2002.fisherfinder.model.NavigationState
 import com.github.ebrooks2002.fisherfinder.data.getCurrentSpeed
 import com.github.ebrooks2002.fisherfinder.data.getFreshnessColor
 import kotlin.math.round
 
 sealed interface FisherFinderUiState {
-    data class Success(val assetData: AssetData?) : FisherFinderUiState
-    data class Error(val assetData: AssetData) : FisherFinderUiState
+    data class Success(val messageList: List<MessageItem>) : FisherFinderUiState
+    data class Error(val messageList: List<MessageItem>) : FisherFinderUiState
     object Loading : FisherFinderUiState
 }
 
@@ -99,23 +99,31 @@ class FisherFinderViewModel(
         }
     }
 
+    /**
+     * Checks if the time since the last request exceeds the 5-minute threshold.
+     */
+    private fun shouldFetchData(): Boolean {
+        val FIVE_MINUTES_MS = 1000
+        val currentTime = System.currentTimeMillis()
+        return (currentTime - lastRequestTime >= FIVE_MINUTES_MS)
+    }
 
     /**
      * Launches a coroutine to asynchronously retrieve and hold asset data, while tracking UI State.
      */
     fun getAssetData() {
-        Log.d("launched", "yaa")
-        val FIVE_MINUTES_MS = 5 * 60 * 1000
-        val currentTime = System.currentTimeMillis()
-        if (currentTime - lastRequestTime < FIVE_MINUTES_MS) {
+        if (!shouldFetchData()) {
             return
         }
-        lastRequestTime = currentTime
+        lastRequestTime = System.currentTimeMillis()
         viewModelScope.launch {
             fisherFinderUiState = FisherFinderUiState.Loading
-            val listResult = assetRepository.fetchData()
+            assetRepository.fetchServerData() // first try to fetch server data and insert to db
+            val listResult = assetRepository.getAllItems() // get data from db
+            Log.d("listresult", listResult.toString())
             fisherFinderUiState = FisherFinderUiState.Success(listResult)
         }
+
     }
     fun selectAsset(name: String) {
         selectedAssetName = name
@@ -124,37 +132,41 @@ class FisherFinderViewModel(
     /**
      * Processes raw AssetData and returns a NavigationState data object
      */
-    fun processAssetData(assetData: AssetData): NavigationState {
-        val messageList = assetData.response.feedMessageResponse.messages?.list ?: emptyList()
+    fun processAssetData(messages: List<MessageItem>): NavigationState {
         var assetSpeedDisplay = "0.00 Knots"
-        val assetHistory = messageList
-            .filter { it.messengerName == selectedAssetName }
-            .sortedByDescending { it.parseDate()?.time ?: 0L }
+        Log.d("messages1", messages.toString())
+        val assetHistory = messages
+            .filter {it.messengerName == selectedAssetName }
+            .sortedByDescending { it.unixTime?: 0L }
+        Log.d("assethistory", assetHistory.toString())
+        Log.d("selected asset", selectedAssetName.toString())
         if (assetHistory.size >= 2) {
             val latest = assetHistory[0]
             val previous = assetHistory[1]
             val currentSpeed = getCurrentSpeed(latest, previous)
+            Log.d("currspeed", currentSpeed.toString())
             if (currentSpeed > 0.0) {
                 assetSpeedDisplay = "%.2f knots".format(currentSpeed)
             }
         } else {
             assetSpeedDisplay = "Calculating..."
         }
-        val latestMessagesPerAsset = messageList.distinctBy { it.messengerName }
-        val uniqueAssets = messageList.mapNotNull { it.messengerName }.distinct().sorted()
+        val latestMessagesPerAsset = assetHistory.distinctBy { it.messengerName }
+        val uniqueAssets = messages.mapNotNull { it.messengerName }.distinct().sorted()
         if (selectedAssetName == null && uniqueAssets.isNotEmpty()) {
             selectedAssetName = uniqueAssets.first()
         }
-        val selectedMessage = messageList.find { it.messengerName == selectedAssetName }
-        val time = selectedMessage?.parseDate()
-        val now = System.currentTimeMillis()
+        val selectedMessage = assetHistory.find { it.messengerName == selectedAssetName }
+        val time = selectedMessage?.unixTime
+        val now = System.currentTimeMillis() / 1000 // current time in seconds
         var myHeading: Float? by mutableStateOf(null)
         var bearingToBuoy = 0f
         val diffMinutes = if (time != null) {
-            (now - time.time) / (1000 * 60)
+            (now - time) / (60)
         } else {
             Long.MAX_VALUE // If no date, treat as "very old"
         }
+        Log.d("diff minutes", diffMinutes.toString())
         val color = getFreshnessColor(diffMinutes)
         val displayName =
             selectedMessage?.messengerName?.substringAfterLast("_") ?: "Select an Asset"
@@ -164,7 +176,7 @@ class FisherFinderViewModel(
         var assetPosition = Location("Asset")
 
         var userToAsset = 0f
-        var gpsInfo: AnnotatedString = buildAnnotatedString { append("Waiting for GPS...") }
+        val gpsInfo: AnnotatedString = buildAnnotatedString { append("Waiting for GPS...") }
         if (userLocation != null && selectedMessage != null) {
             assetPosition = Location("Asset").apply {
                 latitude = selectedMessage.latitude; longitude = selectedMessage.longitude
@@ -179,7 +191,7 @@ class FisherFinderViewModel(
             }
         }
             return NavigationState(
-                allMessages = messageList,
+                allMessages = messages,
                 messages = latestMessagesPerAsset,
                 selectedAssetName = selectedAssetName,
                 displayName = displayName,
@@ -187,8 +199,8 @@ class FisherFinderViewModel(
                 gpsInfo = gpsInfo,
                 uniqueAssets = uniqueAssets,
                 movingHeading = myHeading,
-                formattedDate = selectedMessage?.formattedDate ?: "Date not available",
-                formattedTime = selectedMessage?.formattedTime ?: "Time not available",
+                formattedDate = selectedMessage?.time ?: "Date not available",
+                formattedTime = selectedMessage?.date ?: "Time not available",
                 diffMinutes = diffMinutes.toString(),
                 userRotation = userRotation,
                 bearingToBuoy = bearingToBuoy,
@@ -200,6 +212,8 @@ class FisherFinderViewModel(
                 assetPosition = assetPosition
             )
         }
+
+
     companion object {
         val Factory: Factory
             get() = viewModelFactory {

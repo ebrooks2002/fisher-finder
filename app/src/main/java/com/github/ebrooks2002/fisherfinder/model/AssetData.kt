@@ -16,9 +16,6 @@ data class FeedResponseWrapper(
 
 @Serializable
 data class FeedMessageResponse(
-    val count: Int = 0,
-    val totalCount: Int = 0,
-    val feed: Feed? = null,
     val messages: Messages? = null
 )
 
@@ -31,16 +28,11 @@ data class Messages(
 
 @Serializable
 data class Message(
-    val id: Long = 0,
-    val messengerId: String = "",
     val messengerName: String = "",
-    val unixTime: Long = 0,
-    val messageType: String = "",
     val latitude: Double = 0.0,
+    val unixTime: Long = 0,
     val longitude: Double = 0.0,
     val dateTime: String = "",
-    val batteryState: String = "",
-    val altitude: Int = 0
 ) {
     fun parseDate(): java.util.Date? {
         if (dateTime.isBlank()) return null
@@ -70,9 +62,3 @@ data class Message(
     // Keep your parseDate(), formattedDate, and formattedTime functions here
 
 
-@Serializable
-data class Feed(
-    val id: String = "",
-    val name: String = "",
-    val status: String = ""
-)

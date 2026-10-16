@@ -13,22 +13,19 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import com.github.ebrooks2002.fisherfinder.viewModel.FisherFinderViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.ebrooks2002.fisherfinder.data.AssetRepository
-import com.github.ebrooks2002.fisherfinder.data.DataPersistenceManager
-import com.github.ebrooks2002.fisherfinder.model.AssetData
+
+
+
 import com.github.ebrooks2002.fisherfinder.ui.HomeScreen
-import com.github.ebrooks2002.fisherfinder.ui.theme.BuoyFinderTheme
-import com.github.ebrooks2002.fisherfinder.viewModel.FisherFinderUiState
+import androidx.core.graphics.toColorInt
 
 @Composable
 fun BuoyFinderApp() {
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(android.graphics.Color.parseColor("#EFEDE8"))
+        color = Color("#EFEDE8".toColorInt())
     ) {
         val fisherFinderViewModel: FisherFinderViewModel = viewModel(factory = FisherFinderViewModel.Factory)
         HomeScreen(

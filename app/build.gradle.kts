@@ -2,7 +2,10 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    kotlin("plugin.serialization") version "2.0.0"
+    alias(libs.plugins.kotlin.serialization)
+    id("com.google.devtools.ksp")
+    id("com.google.android.libraries.mapsplatform.secrets-gradle-plugin")
+
 }
 
 android {
@@ -19,6 +22,9 @@ android {
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        // Access the secret from your properties file
+        val spotFeedId: String = project.findProperty("SPOT_FEED_ID") as? String ?: ""
+        buildConfigField("String", "SPOT_FEED_ID", "\"$spotFeedId\"")
     }
 
     buildTypes {
@@ -39,10 +45,17 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
+    val room_version = "2.6.1"
+    implementation("androidx.room:room-runtime:$room_version")
+    implementation("androidx.room:room-ktx:$room_version") // For Coroutines support
+    ksp("androidx.room:room-compiler:$room_version")
+    testImplementation("androidx.room:room-testing:$room_version")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -60,8 +73,6 @@ dependencies {
     implementation("org.maplibre.gl:android-sdk:11.8.0") // Check for latest version
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.0")
     implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")
-
-
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.graphics.shapes)
     implementation(libs.androidx.material3)
